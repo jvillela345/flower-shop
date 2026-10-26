@@ -55,15 +55,18 @@ jobs:
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
           docker build -t "$IMAGE" .
 
-      - name: Smoke test the same image with the sale off, then on
+      - name: Smoke test the same image in three environments
         run: |
-          docker run -d -p 8080:8080 "$IMAGE"
-          docker run -d -p 8081:8080 -e VALENTINES_SALE=on "$IMAGE"
+          docker run -d -p 8081:8080 -e ENVIRONMENT=qa -e VALENTINES_SALE=on "$IMAGE"
+          docker run -d -p 8082:8080 -e ENVIRONMENT=staging -e VALENTINES_SALE=on "$IMAGE"
+          docker run -d -p 8083:8080 -e ENVIRONMENT=production "$IMAGE"
           sleep 5
-          echo "Sale OFF:"; curl -s localhost:8080/
-          echo "Sale ON:";  curl -s localhost:8081/
-          curl -s localhost:8081/ | grep -q "Valentine"
-          curl -s "localhost:8080/total?subtotal=50&code=VDAY20" | grep -q "40"
+          echo "QA:";         curl -s localhost:8081/
+          echo "Staging:";    curl -s localhost:8082/
+          echo "Production:"; curl -s localhost:8083/
+          curl -s localhost:8082/ | grep -q "Valentine"
+          curl -s localhost:8083/ | grep -q "Welcome"
+          curl -s "localhost:8083/total?subtotal=50&code=VDAY20" | grep -q "40"
 
       - name: Publish to the container registry (main branch only)
         if: github.event_name == 'push'
