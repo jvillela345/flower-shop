@@ -4,7 +4,7 @@ from flask import Flask, jsonify, request
 
 app = Flask(__name__)
 
-DISCOUNT_CODES = {"VDAY20": 0.20}
+DISCOUNT_CODES = {"VDAY20": 0.25}
 
 
 def calculate_total(subtotal, code=None):
