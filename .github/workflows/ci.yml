@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: write
+  pull-requests: write
+
+jobs:
+  test-and-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies and tools
+        run: pip install -r requirements.txt ruff pip-audit
+
+      - name: Unit tests
+        run: pytest -v
+
+      - name: Code quality check (SonarQube's role)
+        run: ruff check .
+
+      - name: Open-source dependency scan (Snyk's role)
+        run: pip-audit -r requirements.txt
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-publish:
+    needs: test-and-scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Build the Docker image (the artifact)
+        run: |
+          OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/$OWNER/flower-shop:${{ github.sha }}"
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
+          docker build -t "$IMAGE" .
+
+      - name: Smoke test the same image with the sale off, then on
+        run: |
+          docker run -d -p 8080:8080 "$IMAGE"
+          docker run -d -p 8081:8080 -e VALENTINES_SALE=on "$IMAGE"
+          sleep 5
+          echo "Sale OFF:"; curl -s localhost:8080/
+          echo "Sale ON:";  curl -s localhost:8081/
+          curl -s localhost:8081/ | grep -q "Valentine"
+          curl -s "localhost:8080/total?subtotal=50&code=VDAY20" | grep -q "40"
+
+      - name: Publish to the container registry (main branch only)
+        if: github.event_name == 'push'
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "$IMAGE"
