@@ -20,11 +20,16 @@ def valentines_sale_on():
     return os.getenv("VALENTINES_SALE", "off") == "on"
 
 
+ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
+
+
 @app.route("/")
 def home():
     if valentines_sale_on():
-        return jsonify(message="Valentine's sale! Use code VDAY20 for 20% off.")
-    return jsonify(message="Welcome to the flower shop.")
+        message = "Valentine's sale! Use code VDAY20 for 20% off."
+    else:
+        message = "Welcome to the flower shop."
+    return jsonify(environment=ENVIRONMENT, message=message)
 
 
 @app.route("/total")
